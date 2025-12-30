@@ -41,7 +41,7 @@ Each season uses a specific runner template and has fixed runtime limits.
 
 | Season | Submit folder | Runner template | Max model calls | Max input tokens (per step) | Max output tokens (per step) | Allowed models |
 |------:|---------------|-----------------|----------------:|-----------------------------:|------------------------------:|----------------|
-| 1     | `season_1/`    | `agent_templates/template_1_1/` | 5 | 2000 | 600 | `gpt-4o-mini`, `gpt-4o` |
+| 1     | `season_1/`    | `template_1_1/` | 5 | 2000 | 600 | `gpt-4o-mini`, `gpt-4o` |
 
 Example run for Season 1:
 
