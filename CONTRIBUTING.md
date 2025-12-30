@@ -1,222 +1,185 @@
 # Contributing
 
-Thanks for your interest in participating in the **Summoner Agent Competition**.
+This repository accepts hackathon submissions via **Pull Request (PR)**.
 
-This repository accepts submissions via **Pull Request (PR)**. A submission is eligible only if it:
-1. follows the required interface and repository layout, and
-2. passes the **automatic GitHub checks** (CI).
+A submission is eligible only if it:
 
-If anything below is unclear, open an Issue before investing time in a full agent.
+1. follows the required repository layout and submission format, and
+2. passes the repository’s **automatic GitHub checks** (CI).
 
+If anything here is unclear, open an Issue before investing time in a full submission.
 
+## High-level workflow
 
-## How submissions work
-
-### High-level flow
 1. **Fork** this repository.
 2. Create a new branch in your fork.
-3. Add your agent in the required location and format (see below).
-4. Run the checks locally (recommended).
-5. Open a **Pull Request** from your branch into this repo.
-6. CI runs the automated checks.
+3. Add your submission file in the required location and format.
+4. Test locally (recommended, see the README).
+5. Open a **Pull Request** from your branch into this repository.
+6. CI runs automated checks.
 7. Maintainers review only PRs that pass CI and meet requirements.
 
-### What gets accepted
-We accept one agent per participant per season unless a season explicitly says otherwise.
+## What gets accepted
+
+We accept **one submission per participant per season**, unless a season explicitly says otherwise.
 
 We merge PRs that:
-- follow the rules below,
-- are reproducible and deterministic in how they start,
-- do not add unsafe behavior, and
-- pass all required checks.
 
+- add a valid submission file in the correct season folder
+- do not modify runner code, the server, CI, or other participants’ submissions
+- pass all required checks
 
+## Submission location and naming
 
-## Repository structure
+For the hackathon, participants submit **a single JSON file** (not Python code).
 
-Each participant contributes their agent under a unique folder:
+Place your file in the current season folder (Season 1 shown here):
 
-```
-
-season_xx/<your_handle_or_team_name>/
-agent.py
-README.md
-requirements.txt        (optional)
-assets/                 (optional)
-
+```text
+season_1/agent_<your_github_handle>.json
 ````
 
-**Notes**
-- Folder name should be lowercase and use `a-z0-9-_` only.
-- Do not modify other participants’ folders.
+Example:
 
-
-
-## Agent interface requirements (mandatory)
-
-Your agent **must** be implemented in:
-
-- `participants/<your_handle_or_team_name>/agent.py`
-
-and define:
-
-```python
-async def run_agent(payload: dict):
-    ...
-````
-
-### Timeout
-
-Your agent must return within **45 seconds** after receiving `payload`.
-
-### Payload contract
-
-Your agent must be robust to missing fields. Do not assume optional keys exist.
-
-At minimum, your code should tolerate:
-
-* unknown keys
-* empty dicts
-* unexpected value types
-
-### Output contract
-
-Your agent should return a JSON-serializable Python object. Prefer:
-
-```python
-{"message": "..."}
+```text
+season_1/agent_remytuyeras.json
 ```
-
-If your agent fails, it should return a structured error response, not crash the process:
-
-```python
-{"error": "short description", "details": "..."}
-```
-
-
-
-## Dependencies
-
-### Preferred: standard library only
-
-If you can, avoid external dependencies.
-
-### If you need dependencies
-
-Add them to:
-
-* `participants/<your_handle_or_team_name>/requirements.txt`
 
 Rules:
 
-* Pin versions (example: `httpx==0.27.0`).
-* Keep dependencies minimal.
-* Do not add system-level dependencies (no apt, brew, cuda, etc.).
-* Avoid heavyweight ML frameworks unless a season explicitly allows them.
+* The filename must start with `agent_`.
+* `<your_github_handle>` must match your GitHub username.
+* The file must be **valid JSON** (`.json`, no comments).
 
-The CI environment is CPU-only unless stated otherwise.
+  * For documentation, see `season_1/full_template.jsonc` (JSONC with comments).
 
+## What not to change
 
+Your PR must **not**:
 
-## Networking and external services
+* modify runner code under `agent_templates/`
+* modify `agent_InputAgent/`
+* modify the server, SDK, CI configuration, or repository tooling
+* modify other participants’ files
+* add secrets (API keys, tokens, credentials)
+* add large binaries or datasets
 
-Unless Season rules explicitly allow it, assume:
+If your PR changes anything outside your single `season_<n>/agent_<handle>.json` file, it will be closed unless a maintainer explicitly requested those changes.
 
-* **No outbound network access**
-* **No API keys**
-* **No calls to paid services**
+## Submission format (JSON)
 
-If you rely on external services, your agent will likely fail CI or be disqualified at runtime.
+Your submission is a JSON config consumed by the season’s runner template.
 
+At minimum, it should define:
 
+* `steps`: an array of step objects (each step is one model call)
+* optionally: `system_prompt`, `output_agents`
+
+For the full set of fields and examples, use:
+
+* `season_1/full_template.jsonc` (documentation template)
+* the project README (how to run and test)
+
+### Output expectations
+
+Your configured output step(s) should return a JSON object mapping QIDs to answers:
+
+```json
+{
+  "Q4127": "…",
+  "Q0951": "…"
+}
+```
+
+The runner wraps your mapping into:
+
+```json
+{
+  "answers": { "Q4127": "…", "Q0951": "…" }
+}
+```
+
+If your output step returns plain text instead of a JSON object, it will not produce QID → answer mappings.
+
+## Runner-enforced limits (Season 1: `template_1_1`)
+
+These are enforced at runtime by the runner:
+
+* Max **5** model calls per incoming payload (only the first 5 steps execute)
+* Max **2000 input tokens per step** (step is cancelled if exceeded)
+* Max **600 output tokens per step**
+* Allowed models: `gpt-4o-mini`, `gpt-4o` (others are overridden to `gpt-4o-mini`)
+* Must respond within **1 minute per scenario** (otherwise ignored)
+
+## External services and secrets
+
+Your submission is JSON-only, and the runner performs the allowed OpenAI call(s).
+
+Do not attempt to introduce additional external calls by modifying repo code.
+Do not include API keys in your PR. Runtime keys are provided via environment configuration.
 
 ## Security and safety constraints
 
-Your agent must not:
+Do not submit changes that attempt to:
 
-* attempt privilege escalation or sandbox escape
-* read/write outside its working directory
-* scan the network, probe ports, or exfiltrate data
-* execute arbitrary code fetched from the internet
-* use malware-like behavior (persistence, stealth, obfuscation)
+* escalate privileges or escape the sandbox
+* scan networks, probe ports, or exfiltrate data
+* fetch or execute arbitrary code from the internet
+* add malware-like behavior (persistence, stealth, obfuscation)
+* access files outside the repo structure or runtime working directory
 
-If your agent does any file I/O, keep it within your own participant folder or a temporary directory provided by the runtime.
-
-
-
-## Logging and stdout
-
-Keep logs minimal. If you print, prefer a single line per turn.
-
-Do not print secrets (tokens, private endpoints, etc.). CI logs are public to maintainers and may be visible to others depending on repository settings.
-
-
+(Participants should not be adding code at all. This section clarifies what is disallowed in PRs.)
 
 ## Reproducibility expectations
 
-We will run agents multiple times. You should:
+We run agents multiple times across scenarios. You should:
 
-* minimize nondeterminism
-* if you use randomness, seed it (or document why you cannot)
-* avoid time-based behavior that changes results across runs
+* keep prompts stable and deterministic where possible
+* avoid relying on undefined or optional fields
+* assume payload shapes and sizes vary across scenarios
 
-
-
-## Local development (recommended)
+## Local testing (recommended)
 
 Before opening a PR:
 
-* run formatting/linting (if provided by the repo)
-* run unit tests (if provided by the repo)
-* run your agent on a small sample payload
+* run the season runner locally with your JSON file
+* use the InputAgent `/test` workflow described in the README
 
-If the repo provides a harness script later (e.g. `python -m competition.run ...`), use it.
+Startup order matters:
 
+1. server
+2. your agent (runner template)
+3. InputAgent
+4. then `/test`
 
-
-## PR requirements
-
-### Checklist
+## PR checklist
 
 Your PR must:
 
-* [ ] add a new folder under `participants/` with your handle/team name
-* [ ] include `agent.py` with `async def run_agent(payload: dict)`
-* [ ] include a short `README.md` explaining behavior and assumptions
-* [ ] include `requirements.txt` only if needed (and pinned)
+* [ ] add exactly one file: `season_1/agent_<your_github_handle>.json`
+* [ ] keep it valid JSON (no comments)
+* [ ] not modify runner/server/SDK/CI or other submissions
 * [ ] pass all CI checks
 
-### What not to include
-
-* changes to CI files unless requested
-* changes to other participants’ submissions
-* large binary files
-* secrets (API keys, tokens, credentials)
-
-### Review process
+## Review process
 
 Maintainers review PRs that pass CI. If changes are requested:
 
 * push commits to the same branch
 * do not open a new PR unless asked
 
-
 ## Licensing
 
 By submitting a PR, you agree that your contribution can be used and redistributed under this repository’s license.
 
-If your agent includes third-party code, you are responsible for ensuring it is compatible with this repository’s license and that required attribution is included in your `README.md`.
-
-
+If your submission includes third-party content, you are responsible for ensuring you have the right to submit it and that any required attribution is included.
 
 ## Questions
 
 Open an Issue with:
 
-* what you are trying to build,
-* any dependency constraints,
-* whether you need network access (and why),
-* expected runtime footprint (roughly).
+* what you are trying to build
+* what season you are targeting
+* what constraint you are hitting (token limits, output format, etc.)
 
-We prefer resolving constraints early over debugging CI later.
-
+Resolving constraints early is preferred over debugging CI later.
