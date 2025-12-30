@@ -1,0 +1,160 @@
+{
+  // ===========================================================================
+  // Hackathon participant config: agent steps (JSONC)
+  //
+  // This file defines a SMALL pipeline of LLM calls ("steps").
+  // Participants should edit ONLY this file.
+  //
+  // IMPORTANT: the runner enforces hackathon limits:
+  // - MAX_OPENAI_CALLS (max number of steps executed)
+  // - MAX_INPUT_TOKENS (input token cap, step is cancelled if exceeded)
+  // - MAX_OUTPUT_TOKENS (output token cap)
+  // - model is restricted to: "gpt-4o-mini" or "gpt-4o"
+  //
+  // OUTPUT PACKAGING:
+  // - The runner merges outputs from output_agents into ONE dictionary:
+  //     out = { "answers": { ...merged... } }
+  // - Key conflicts are resolved by output_agents priority:
+  //     the FIRST agent in output_agents wins (later ones cannot overwrite).
+  //
+  // TIP: For large payloads, do NOT include the whole incoming message.
+  // Use include_incoming as a dotted path (e.g. "raw.questions") to keep prompts
+  // small and avoid exceeding MAX_INPUT_TOKENS.
+  // ===========================================================================
+
+  // Default system prompt for all steps (unless overridden per-step).
+  "system_prompt": "You are a helpful assistant. Be concise and correct.",
+
+  // Which step outputs should be merged into the final returned dictionary.
+  // - If empty or missing, the runner defaults to using the last executed step.
+  // - Priority order: FIRST wins on key conflicts.
+  //
+  // Example: if "final_answer" and "debug_info" both produce key "Q4127",
+  // then whichever appears first here wins.
+  "output_agents": ["final_answer"],
+
+  // Steps are executed in order, up to MAX_OPENAI_CALLS.
+  "steps": [
+    {
+      // Unique identifier for the step. Also used by "use_payload_from".
+      "name": "extract_task",
+
+      // Text injected BEFORE the incoming payload and dependencies.
+      // Good place for labels and explicit instructions.
+      "prompt_intro": "Step 1: Extract task.\n\nYou will receive a JSON fragment. Identify whether it contains a questions map.\nReturn JSON with keys:\n- has_questions (boolean)\n- scenario_id (string|null)\n- scenario (string|null)\n- questions (object|null)\n- user_request (string|null)\n\nIncoming JSON:",
+
+      // What part of the incoming message is injected into the prompt.
+      //
+      // Allowed values:
+      // - true  : include the entire incoming payload (often too large)
+      // - false : include nothing
+      // - "path.to.field" : include only a sub-field of the incoming payload
+      //
+      // Examples:
+      // - "raw" -> incoming["raw"]
+      // - "raw.questions" -> incoming["raw"]["questions"]
+      // - "message" -> incoming["message"] (if the payload has that shape)
+      "include_incoming": "raw",
+
+      // List of previous step names whose outputs should be appended to the prompt.
+      // Only outputs from steps that have already run are used.
+      // The injected payloads are joined with "\n" in the runner.
+      "use_payload_from": [],
+
+      // Text injected AFTER incoming + dependencies.
+      "prompt_ending": "Return JSON only.",
+
+      // Optional override: system prompt used only for this step.
+      // If omitted, runner uses top-level system_prompt.
+      // "system_prompt": "Optional override for Step 1.",
+
+      // Model restriction: only "gpt-4o-mini" or "gpt-4o".
+      // Any other value will be replaced by "gpt-4o-mini".
+      "model": "gpt-4o-mini",
+
+      // Optional. If omitted, runner does not pass temperature.
+      "temperature": 0.1,
+
+      // Response format requested from the runner:
+      // - "json": runner requests json_object and parses JSON
+      // - "text": runner requests plain text and returns raw string
+      "response_format": "json"
+    },
+
+    {
+      "name": "solve_questions_or_single",
+
+      "prompt_intro": "Step 2: Solve.\n\nYou are given Step 1 output below.\n\nIf has_questions=true:\n- Return JSON mapping each QID to its answer.\n- Keys must match QIDs exactly.\n- Keep answers short and actionable.\n\nIf has_questions=false:\n- Return JSON: {\"answer\": \"...\"}\n\nStep 1 output:",
+
+      // We do not include the incoming payload again.
+      "include_incoming": false,
+
+      // Use the output of extract_task as input to this step.
+      "use_payload_from": ["extract_task"],
+
+      "prompt_ending": "Return JSON only.",
+
+      // Demonstrate model switch to the bigger model for reasoning.
+      "model": "gpt-4o",
+
+      // Slightly higher temperature for more flexible drafting.
+      "temperature": 0.2,
+
+      "response_format": "json"
+    },
+
+    {
+      "name": "final_answer",
+
+      "prompt_intro": "Step 3: Finalizer.\n\nYou are given:\n- Step 1 output\n- Step 2 output\n\nTask:\n- If has_questions=true: output ONLY the final JSON object mapping QIDs to answers.\n- If has_questions=false: output ONLY {\"answer\": \"...\"}.\n- Do not add extra keys.\n\nInputs:",
+
+      "include_incoming": false,
+
+      // Demonstrate multiple dependencies (joined with '\n' by the runner).
+      "use_payload_from": ["extract_task", "solve_questions_or_single"],
+
+      "prompt_ending": "Return JSON only.",
+
+      "model": "gpt-4o-mini",
+      "temperature": 0.1,
+      "response_format": "json"
+    },
+
+    {
+      // OPTIONAL EXTRA STEP EXAMPLE (not required).
+      // This step is useful for hackathons where you want a human-readable summary
+      // in addition to JSON answers.
+      //
+      // NOTE: If MAX_OPENAI_CALLS is small, this step may not run unless you
+      // increase MAX_OPENAI_CALLS in the environment (still capped by hackathon).
+      //
+      // If you include this step, you can also add it to output_agents to merge
+      // keys into final output. But be careful about key collisions.
+      "name": "human_summary",
+
+      "prompt_intro": "Optional Step 4: Human summary.\n\nYou are given the final JSON answers below.\nWrite a short plain-text summary for a human reviewer.\n\nAnswers JSON:",
+
+      "include_incoming": false,
+      "use_payload_from": ["final_answer"],
+
+      "prompt_ending": "Return plain text only.",
+
+      "model": "gpt-4o-mini",
+      "temperature": 0.3,
+      "response_format": "text"
+    }
+
+    // -------------------------------------------------------------------------
+    // Another optional pattern:
+    //
+    // A "debug" step that emits keys like "_debug_*" and you put it LAST in
+    // output_agents so it never overwrites real answer keys.
+    //
+    // Example:
+    // "output_agents": ["final_answer", "debug_info"]
+    //
+    // debug_info payload could be:
+    // { "_debug_input_tokens": 1234, "_debug_notes": "..." }
+    // -------------------------------------------------------------------------
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "system_prompt": "You are a general-purpose assistant. Be concise, actionable, and correct. If the payload contains a questions map, answer each question id separately and return a JSON object mapping question ids to answers. Otherwise return a JSON object with a single key 'answer'.",
+
+  "output_agents": ["final_answer"],
+
+  "steps": [
+    {
+      "name": "extract_task",
+      "prompt_intro": "Step 1: Extract task.\n\nYou will receive a JSON payload fragment below.\n\nReturn JSON with exactly:\n{\n  \"has_questions\": boolean,\n  \"scenario_id\": string | null,\n  \"scenario\": string | null,\n  \"questions\": {\"QID\": \"question\", ...} | null,\n  \"user_request\": string | null\n}\n\nRules:\n- If you find a dict of questions, set has_questions=true and copy it into \"questions\".\n- Otherwise set has_questions=false.\n\nIncoming payload fragment (JSON):",
+      "include_incoming": "raw",
+      "use_payload_from": [],
+      "prompt_ending": "Return JSON only.",
+      "model": "gpt-4o-mini",
+      "temperature": 0.1,
+      "response_format": "json"
+    },
+
+    {
+      "name": "solve",
+      "prompt_intro": "Step 2: Solve.\n\nYou are given Step 1 output below.\n\nIf has_questions=true:\n- Return JSON mapping each QID to its answer.\n- Keys must match the QIDs exactly.\n- Keep answers focused and practical.\n\nIf has_questions=false:\n- Return JSON: {\"answer\": \"...\"}\n\nStep 1 output:",
+      "include_incoming": false,
+      "use_payload_from": ["extract_task"],
+      "prompt_ending": "Return JSON only.",
+      "model": "gpt-4o",
+      "temperature": 0.2,
+      "response_format": "json"
+    },
+
+    {
+      "name": "final_answer",
+      "prompt_intro": "Step 3: Finalize.\n\nYou are given:\n- Step 1 output\n- Step 2 output\n\nProduce the final output.\n\nIf has_questions=true: return ONLY a JSON object mapping QIDs to answers.\nIf has_questions=false: return ONLY {\"answer\": \"...\"}.\n\nInputs:",
+      "include_incoming": false,
+      "use_payload_from": ["extract_task", "solve"],
+      "prompt_ending": "Return JSON only.",
+      "model": "gpt-4o-mini",
+      "temperature": 0.1,
+      "response_format": "json"
+    }
+  ]
+}
