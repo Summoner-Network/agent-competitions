@@ -26,7 +26,7 @@ message_buffer: Optional[asyncio.Queue] = None
 buffer_lock: Optional[asyncio.Lock] = None
 
 # OpenAI client (direct, no wrappers)
-open_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+openai_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
 async def setup() -> None:
@@ -123,7 +123,7 @@ async def send_message() -> Optional[Union[dict, str]]:
         )
         await aprint(user_prompt)
 
-        resp = await open_client.chat.completions.create(
+        resp = await openai_client.chat.completions.create(
             model=MODEL,
             messages=[
                 {"role": "system", "content": "You are an assistant helping other agents with their requests."},

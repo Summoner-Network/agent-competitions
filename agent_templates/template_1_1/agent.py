@@ -49,7 +49,7 @@ message_buffer: Optional[asyncio.Queue] = None
 buffer_lock: Optional[asyncio.Lock] = None
 
 # OpenAI client (direct, no wrappers)
-open_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+openai_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
 def sanitize_model(maybe_model: Any) -> str:
@@ -287,7 +287,7 @@ async def send_message() -> Optional[Union[dict, str]]:
             if fmt == "json":
                 kwargs["response_format"] = {"type": "json_object"}
 
-            resp: ChatCompletion = await open_client.chat.completions.create(
+            resp: ChatCompletion = await openai_client.chat.completions.create(
                 model=model,
                 messages=messages,
                 **kwargs,
